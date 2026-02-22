@@ -2,7 +2,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 
 type Environment = Record<string, string | undefined>;
 
-type SchemaValue = StandardSchemaV1<string | undefined, any>;
+type SchemaValue = StandardSchemaV1<unknown, any>;
 type Schema = Record<string, SchemaValue>;
 type InferSchema<T extends Schema> = {
     [K in keyof T]: StandardSchemaV1.InferOutput<T[K]>;
