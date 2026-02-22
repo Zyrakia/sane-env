@@ -1,115 +1,275 @@
-import { describe, it, expect } from 'bun:test';
-import { parse } from '../src/index.ts';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import path from 'path';
+import { z } from 'zod';
 
-describe('parser', () => {
-	it('parses basic key-value pairs', () => {
-		const parsed = parse('BASIC=value\nNUMBER=123\nEMPTY=');
-		expect(parsed).toEqual({
-			BASIC: 'value',
-			NUMBER: '123',
-			EMPTY: '',
-		});
-	});
+import { createEnvironment } from '../src/index.ts';
+import { loadEnvironment } from '../src/load.ts';
 
-	it('handles spaces around keys and values', () => {
-		const parsed = parse('  SPACED_KEY  =  spaced value  \nTRIMMED= trimmed');
-		expect(parsed).toEqual({
-			SPACED_KEY: 'spaced value',
-			TRIMMED: 'trimmed',
-		});
-	});
+function makeTempDir() {
+    return mkdtempSync(path.join(tmpdir(), 'env-env-'));
+}
 
-	it('allows keys with dots and dashes', () => {
-		const parsed = parse('MY.CUSTOM-KEY=works\nAPP-VERSION.0=1.0.0');
-		expect(parsed).toEqual({
-			'MY.CUSTOM-KEY': 'works',
-			'APP-VERSION.0': '1.0.0',
-		});
-	});
+function writeEnvFiles(root: string, files: Record<string, string>) {
+    for (const [name, content] of Object.entries(files)) {
+        writeFileSync(path.join(root, name), content);
+    }
+}
 
-	it('strips export prefixes', () => {
-		const parsed = parse('export PREFIXED=hello\n  export   PADDED=world');
-		expect(parsed).toEqual({
-			PREFIXED: 'hello',
-			PADDED: 'world',
-		});
-	});
+describe('loadEnvironment', () => {
+    it('loads files in order with later files overriding earlier ones', () => {
+        const root = makeTempDir();
 
-	it('supports the colon separator instead of equals', () => {
-		const parsed = parse('COLON: value\nexport DB_HOST: localhost');
-		expect(parsed).toEqual({
-			COLON: 'value',
-			DB_HOST: 'localhost',
-		});
-	});
+        try {
+            writeEnvFiles(root, {
+                '.env': 'A=base\nB=base\nEMPTY=\n',
+                '.env.local': 'B=local\nC=local\n',
+                '.env.test': 'C=test\nD=test\n',
+            });
 
-	it('ignores full-line and inline comments', () => {
-		const parsed = parse(`
-      # This is a full line comment
-      VALID=true # This is an inline comment
-      ANOTHER=value#Without spaces
-      # IGNORE_ME=true
-    `);
-		expect(parsed).toEqual({
-			VALID: 'true',
-			ANOTHER: 'value',
-		});
-	});
+            const loaded = loadEnvironment({
+                root,
+                files: ['.env', '.env.local', '.env.test'],
+            });
 
-	it('respects single quotes (no expansion)', () => {
-		const parsed = parse(`
-      SINGLE_QUOTES='literal \\n newline'
-      SINGLE_HASH='value # with hash'
-    `);
-		expect(parsed).toEqual({
-			SINGLE_QUOTES: 'literal \\n newline',
-			SINGLE_HASH: 'value # with hash',
-		});
-	});
+            expect(loaded).toEqual({
+                A: 'base',
+                B: 'local',
+                C: 'test',
+                D: 'test',
+            });
+            expect(loaded.EMPTY).toBeUndefined();
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
 
-	it('respects double quotes (expands newlines)', () => {
-		const parsed = parse(`
-      DOUBLE_QUOTES="line1\\nline2"
-      DOUBLE_HASH="value # with hash"
-      ESCAPED_QUOTE="she said \\"hello\\""
-    `);
-		expect(parsed).toEqual({
-			DOUBLE_QUOTES: 'line1\nline2',
-			DOUBLE_HASH: 'value # with hash',
-			ESCAPED_QUOTE: 'she said \\"hello\\"',
-		});
-	});
+    it('keeps empty strings when emptyStringsAsUndefined is false', () => {
+        const root = makeTempDir();
 
-	it('respects backticks (multiline support without expansion)', () => {
-		const parsed = parse(`
-      BACKTICKS=\`literal \\n newline\`
-      BACKTICK_MULTILINE=\`line1
-line2\`
-    `);
-		expect(parsed).toEqual({
-			BACKTICKS: 'literal \\n newline',
-			BACKTICK_MULTILINE: 'line1\nline2',
-		});
-	});
+        try {
+            writeEnvFiles(root, {
+                '.env': 'EMPTY=\nBLANK=   \n',
+            });
 
-	it('handles literal multiline values inside quotes', () => {
-		const parsed = parse(`
-      MULTI_DOUBLE="line1
-line2"
-      MULTI_SINGLE='line3
-line4'
-    `);
-		expect(parsed).toEqual({
-			MULTI_DOUBLE: 'line1\nline2',
-			MULTI_SINGLE: 'line3\nline4',
-		});
-	});
+            const loaded = loadEnvironment({
+                root,
+                files: ['.env'],
+                emptyStringsAsUndefined: false,
+            });
 
-	it('skips empty lines gracefully', () => {
-		const parsed = parse('\n\nKEY=value\n\n\nNEXT=value2\n');
-		expect(parsed).toEqual({
-			KEY: 'value',
-			NEXT: 'value2',
-		});
-	});
+            expect(loaded).toEqual({ EMPTY: '', BLANK: '' });
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('parses spaces, export prefix, and colon separator', () => {
+        const root = makeTempDir();
+
+        try {
+            writeEnvFiles(root, {
+                '.env': '  KEY_A  =  value a  \nexport KEY_B=world\nKEY_C: colon value\n',
+            });
+
+            const loaded = loadEnvironment({ root, files: ['.env'] });
+            expect(loaded).toEqual({
+                KEY_A: 'value a',
+                KEY_B: 'world',
+                KEY_C: 'colon value',
+            });
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('parses keys with dots and dashes', () => {
+        const root = makeTempDir();
+
+        try {
+            writeEnvFiles(root, {
+                '.env': 'MY.CUSTOM-KEY=works\nAPP-VERSION.0=1.0.0\n',
+            });
+
+            const loaded = loadEnvironment({ root, files: ['.env'] });
+            expect(loaded).toEqual({
+                'MY.CUSTOM-KEY': 'works',
+                'APP-VERSION.0': '1.0.0',
+            });
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('handles comments and keeps hashes in quoted values', () => {
+        const root = makeTempDir();
+
+        try {
+            writeEnvFiles(root, {
+                '.env': [
+                    '# full-line comment',
+                    'VISIBLE=true # inline comment',
+                    'RAW=value#trimmed-at-hash',
+                    "SINGLE='value # kept'",
+                    'DOUBLE="value # also kept"',
+                    '',
+                ].join('\n'),
+            });
+
+            const loaded = loadEnvironment({ root, files: ['.env'] });
+            expect(loaded).toEqual({
+                VISIBLE: 'true',
+                RAW: 'value',
+                SINGLE: 'value # kept',
+                DOUBLE: 'value # also kept',
+            });
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('handles single, double, and backtick quotes including multiline values', () => {
+        const root = makeTempDir();
+
+        try {
+            writeEnvFiles(root, {
+                '.env': [
+                    String.raw`SINGLE='literal \n newline'`,
+                    String.raw`DOUBLE="line1\nline2\rline3"`,
+                    'BACKTICK=`line1',
+                    'line2`',
+                    String.raw`MULTI_DOUBLE="lineA`,
+                    'lineB"',
+                    String.raw`MULTI_SINGLE='lineX`,
+                    "lineY'",
+                ].join('\n'),
+            });
+
+            const loaded = loadEnvironment({ root, files: ['.env'] });
+
+            expect(loaded.SINGLE).toBe('literal \\n newline');
+            expect(loaded.DOUBLE).toBe('line1\nline2\rline3');
+            expect(loaded.BACKTICK).toBe('line1\nline2');
+            expect(loaded.MULTI_DOUBLE).toBe('lineA\nlineB');
+            expect(loaded.MULTI_SINGLE).toBe('lineX\nlineY');
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('normalizes CRLF newlines', () => {
+        const root = makeTempDir();
+
+        try {
+            writeEnvFiles(root, {
+                '.env': 'A=1\r\nB=2\r\n',
+            });
+
+            const loaded = loadEnvironment({ root, files: ['.env'] });
+            expect(loaded).toEqual({ A: '1', B: '2' });
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('ignores missing files', () => {
+        const root = makeTempDir();
+
+        try {
+            writeEnvFiles(root, {
+                '.env': 'A=1\n',
+            });
+
+            const loaded = loadEnvironment({
+                root,
+                files: ['.missing', '.env', '.also-missing'],
+            });
+
+            expect(loaded).toEqual({ A: '1' });
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('createEnvironment', () => {
+    it('validates and returns parsed values', () => {
+        const env = createEnvironment({
+            source: { NODE_ENV: 'production', PORT: '3000' },
+            schema: {
+                NODE_ENV: z.enum(['development', 'test', 'production']),
+                PORT: z.string().transform((v) => Number(v)),
+            },
+        });
+
+        expect(env).toEqual({ NODE_ENV: 'production', PORT: 3000 });
+    });
+
+    it('throws useful validation errors for invalid values', () => {
+        expect(() =>
+            createEnvironment({
+                source: { NODE_ENV: 'staging' },
+                schema: {
+                    NODE_ENV: z.enum(['development', 'test', 'production']),
+                },
+            }),
+        ).toThrow('Invalid environment variable');
+    });
+});
+
+describe('config entrypoint', () => {
+    const originalCwd = process.cwd();
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalInTestPort = process.env.INTEST_PORT;
+
+    beforeEach(() => {
+        process.chdir(originalCwd);
+        process.env.NODE_ENV = originalNodeEnv;
+        process.env.INTEST_PORT = originalInTestPort;
+    });
+
+    afterEach(() => {
+        process.chdir(originalCwd);
+        process.env.NODE_ENV = originalNodeEnv;
+        process.env.INTEST_PORT = originalInTestPort;
+    });
+
+    it('loads mode dependent chain into process.env', async () => {
+        const root = makeTempDir();
+
+        try {
+            writeEnvFiles(root, {
+                '.env': 'INTEST_PORT=1000\n',
+                '.env.local': 'INTEST_PORT=2000\n',
+                '.env.test': 'INTEST_PORT=3000\n',
+                '.env.test.local': 'INTEST_PORT=4000\n',
+            });
+
+            process.chdir(root);
+            process.env.NODE_ENV = 'test';
+            process.env.INTEST_PORT = undefined;
+
+            await import(`../src/config/index.ts?ts=${Date.now()}`);
+
+            expect(process.env.INTEST_PORT as string | undefined).toBe('4000');
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('throws when NODE_ENV is not set', async () => {
+        const root = makeTempDir();
+
+        try {
+            process.chdir(root);
+            delete process.env.NODE_ENV;
+
+            await expect(import(`../src/config/index.ts?ts=${Date.now()}`)).rejects.toThrow(
+                '`NODE_ENV` must be set',
+            );
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
 });
