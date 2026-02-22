@@ -3,16 +3,16 @@ import fs from 'fs';
 
 export interface EnvLoadOptions {
     /**
-     * The root path to load files from.
-     * Default `process.cwd()`
-     */
-    root?: string;
-
-    /**
      * The files (relative to `root`) to load and parse.
      * In Lowest -> Highest priority order.
      */
     files: string[];
+
+    /**
+     * The root path to load files from.
+     * Default `process.cwd()`
+     */
+    root?: string;
 
     /**
      * Whether empty (`''`) or blank (`'   '`) entries are parsed as `undefined`.
