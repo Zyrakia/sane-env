@@ -1,6 +1,6 @@
 import { loadEnvironment } from '../load.ts';
 
-const mode = process.env.NODE_ENV;
+const mode = Reflect.get(process.env, 'NODE_ENV') as string | undefined;
 if (mode === undefined) throw new Error('`NODE_ENV` must be set when injecting environment variables');
 
 const environment = loadEnvironment({
