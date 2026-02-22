@@ -1,5 +1,5 @@
 {
-    "name": "env-env",
+    "name": "envkit",
     "version": "0.1.0",
     "description": "Mode dependent environment loader with schema validation.",
     "type": "module",
