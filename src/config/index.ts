@@ -1,4 +1,4 @@
-import { loadEnvironment } from './load.ts';
+import { loadEnvironment } from '../load.ts';
 
 const mode = process.env.NODE_ENV;
 if (mode === undefined) throw new Error('`NODE_ENV` must be set when injecting environment variables');
