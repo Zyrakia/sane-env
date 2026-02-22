@@ -3,7 +3,7 @@
     "configVersion": 1,
     "workspaces": {
         "": {
-            "name": "envkit",
+            "name": "sane-env",
             "dependencies": {
                 "@standard-schema/spec": "^1.1.0",
             },

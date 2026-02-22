@@ -8,7 +8,7 @@ import { createEnvironment } from '../src/index.ts';
 import { loadEnvironment } from '../src/load.ts';
 
 function makeTempDir() {
-    return mkdtempSync(path.join(tmpdir(), 'envkit-'));
+    return mkdtempSync(path.join(tmpdir(), 'sane-env-'));
 }
 
 function writeEnvFiles(root: string, files: Record<string, string>) {
