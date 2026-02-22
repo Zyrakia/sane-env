@@ -1,11 +1,11 @@
-# env-env
+# envkit
 
 Mode-aware environment loading with schema validation.
 
 ## Install
 
 ```bash
-bun add env-env
+bun add envkit
 ```
 
 ## Usage
@@ -13,7 +13,7 @@ bun add env-env
 #### Inject layered env files into `process.env` - requires `NODE_ENV` to be set:
 
 ```ts
-import 'env-env/config';
+import 'envkit/config';
 ```
 
 Loads these files:
@@ -27,7 +27,7 @@ Loads these files:
 
 ```ts
 import { z } from 'zod'; // Standard Schema compatible, bring your own
-import { createEnvironment } from 'env-env';
+import { createEnvironment } from 'envkit';
 
 const env = createEnvironment({
     source: process.env,
@@ -41,8 +41,8 @@ const env = createEnvironment({
 #### Custom environment loading logic:
 
 ```ts
-import { loadEnvironment } from 'env-env/load';
-import { createEnvironment } from 'env-env';
+import { loadEnvironment } from 'envkit/load';
+import { createEnvironment } from 'envkit';
 
 const envRecord = loadEnvironment({
     // Custom loading configuration (see below)
