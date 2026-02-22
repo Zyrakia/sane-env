@@ -60,5 +60,5 @@ const env = createEnvironment({
 | ----------------------- | ---------------------------------------------------------- | -------- | ------------------------------------------------ |
 | files                   | The file names to load in lowest to highest priority order | ✅       |                                                  |
 | root                    | The root directory at which to load files from             | ❌       | `process.cwd()`                                  |
-| emptyStringsAsUndefined | Whether blank entries are parsed as `undefined`            | ❌       | `true`                                           |
+| emptyStringsAsUndefined | Whether blank entries are skipped in parsing               | ❌       | `true`                                           |
 | debug                   | Whether to announce which files are being loaded/parsed    | ❌       | `false` (`true` with `/config` in `development`) |
