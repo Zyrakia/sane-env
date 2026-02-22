@@ -1,53 +1,80 @@
-import z from 'zod';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+
+type Environment = Record<string, string | undefined>;
 
 type SchemaValue = StandardSchemaV1<string | undefined, any>;
 type Schema = Record<string, SchemaValue>;
 type InferSchema<T extends Schema> = {
-	[K in keyof T]: StandardSchemaV1.InferOutput<T[K]>;
+    [K in keyof T]: StandardSchemaV1.InferOutput<T[K]>;
 };
 
-export interface EnvEnvOptions<T extends Schema> {
-	mode: string;
-	schema: T;
+export interface EnvCreateOptions<T extends Schema> {
+    /**
+     * The raw environment values to compare against the schema.
+     */
+    source: Environment;
+
+    /**
+     * The schema defining which variables to pull and
+     * validate from the environment source.
+     */
+    schema: T;
 }
 
-// https://github.com/motdotla/dotenv/blob/9d93f227bd04e1c364da31128a3606f98b321e61/lib/main.js#L46
-const LINE =
-	/^\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?$/gm;
-
-export function parse(content: string) {
-	const normalizedContent = content.replace(/\r\n?/g, '\n');
-	const result: Record<string, string> = {};
-
-	for (const match of normalizedContent.matchAll(LINE)) {
-		const key = match[1];
-		let value = (match[2] || '').trim();
-		if (key === undefined) continue;
-
-		const isDoubleQuoted = value[0] === '"';
-
-		// https://github.com/motdotla/dotenv/blob/9d93f227bd04e1c364da31128a3606f98b321e61/lib/main.js#L72
-		value = value.replace(/^(['"`])([\s\S]*)\1$/gm, '$2');
-
-		if (isDoubleQuoted) {
-			value = value.replace(/\\n/g, '\n');
-			value = value.replace(/\\r/g, '\r');
-		}
-
-		result[key] = value;
-	}
-
-	return result;
+function throwValidationError(
+    envKey: string,
+    parsedValue: any,
+    issues: readonly StandardSchemaV1.Issue[],
+): never {
+    console.error(`Invalid environment variable:
+Key: ${envKey}
+Parsed Value: ${parsedValue}
+Message: ${issues[0]?.message}`);
+    process.exit(1);
 }
 
-function loadEnvironment(mode: string) {
-	const overrideOrder = ['.env', '.env.local', `.env.${mode}`, `.env.${mode}.local`];
-	// TODO
+function resolveSchema<T extends SchemaValue>(standard: T) {
+    return standard['~standard'];
 }
 
-export function createEnvironment<T extends Schema>(opts: EnvEnvOptions<T>): InferSchema<T> {
-	const result = {} as InferSchema<T>;
-	// TODO
-	return result;
+/**
+ * Given a schema and environment, validate a single key and
+ * return the output value.
+ */
+function validateEnvironmentValue<T extends Schema, K extends keyof T>(
+    schema: T,
+    environment: Environment,
+    key: K,
+) {
+    const standard = resolveSchema(schema[key]);
+
+    const envKey = String(key);
+    const envValue = environment[envKey];
+
+    const result = standard.validate(envValue);
+    if (result instanceof Promise) {
+        throw new Error(`Validation of key "${envKey}" is not synchronous`);
+    }
+
+    if (result.issues) {
+        throwValidationError(envKey, envValue, result.issues);
+    }
+
+    return result.value as StandardSchemaV1.InferOutput<T[K]>;
+}
+
+/**
+ * Ensures an environment record matches a schema and returns the
+ * validated result.
+ */
+export function createEnvironment<T extends Schema>(opts: EnvCreateOptions<T>): InferSchema<T> {
+    const { schema, source } = opts;
+    const result = {} as InferSchema<T>;
+
+    for (const key in opts.schema) {
+        const value = validateEnvironmentValue(schema, source, key);
+        result[key] = value;
+    }
+
+    return result;
 }
