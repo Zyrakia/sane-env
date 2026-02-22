@@ -1,16 +1,54 @@
 {
-	"name": "env-env",
-	"description": "Mode dependent environment loader with schema validation.",
-	"module": "src/index.ts",
-	"type": "module",
-	"devDependencies": {
-		"@types/bun": "latest",
-		"zod": "^4.3.6"
-	},
-	"peerDependencies": {
-		"typescript": "^5"
-	},
-	"dependencies": {
-		"@standard-schema/spec": "^1.1.0"
-	}
+    "name": "env-env",
+    "version": "0.1.0",
+    "description": "Mode dependent environment loader with schema validation.",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        },
+        "./load": {
+            "types": "./dist/load.d.ts",
+            "import": "./dist/load.js",
+            "default": "./dist/load.js"
+        },
+        "./config": {
+            "types": "./dist/config/index.d.ts",
+            "import": "./dist/config/index.js",
+            "default": "./dist/config/index.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "sideEffects": [
+        "./dist/config/index.js"
+    ],
+    "scripts": {
+        "build": "rm -rf dist && bun build src/index.ts src/load.ts src/config/index.ts --outdir dist --target node --format esm && bunx tsc -p tsconfig.json --noEmit false --emitDeclarationOnly",
+        "prepublishOnly": "bun run build"
+    },
+    "author": {
+        "name": "Zyrakia",
+        "email": "mail@zyrakia.dev",
+        "url": "https://github.com/zyrakia"
+    },
+    "license": "MIT",
+    "devDependencies": {
+        "@types/bun": "latest",
+        "zod": "^4.3.6"
+    },
+    "peerDependencies": {
+        "typescript": "^5"
+    },
+    "dependencies": {
+        "@standard-schema/spec": "^1.1.0"
+    }
 }
