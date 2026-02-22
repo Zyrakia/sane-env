@@ -26,11 +26,17 @@ function throwValidationError(
     parsedValue: any,
     issues: readonly StandardSchemaV1.Issue[],
 ): never {
-    console.error(`Invalid environment variable:
+    const messages =
+        issues.length === 0
+            ? 'undefined'
+            : issues.length === 1
+              ? issues[0]?.message
+              : issues.map((v) => `- ${v.message}`).join('\n');
+
+    throw new Error(`Invalid environment variable:
 Key: ${envKey}
 Parsed Value: ${parsedValue}
-Message: ${issues[0]?.message}`);
-    process.exit(1);
+Message(s): ${messages}`);
 }
 
 function resolveSchema<T extends SchemaValue>(standard: T) {
