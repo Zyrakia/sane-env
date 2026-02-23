@@ -1,6 +1,6 @@
 {
     "name": "sane-env",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Mode dependent environment loader with schema validation.",
     "type": "module",
     "main": "./dist/index.js",
@@ -39,6 +39,10 @@
         "name": "Zyrakia",
         "email": "mail@zyrakia.dev",
         "url": "https://github.com/zyrakia"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/zyrakia/sane-env"
     },
     "license": "MIT",
     "devDependencies": {
