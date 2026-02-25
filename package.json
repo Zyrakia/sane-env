@@ -1,6 +1,6 @@
 {
     "name": "sane-env",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Mode dependent environment loader with schema validation.",
     "type": "module",
     "main": "./dist/index.js",
